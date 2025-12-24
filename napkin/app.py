@@ -4,7 +4,7 @@ from PIL import Image
 
 # 1. SETUP
 # Paste your Gemini API Key here
-client = genai.Client(api_key="AIzaSyB3p3TwCgKpsAegES_mNcvfEA0T-H065tw")
+client = genai.Client(api_key=st.secrets["GEMINI_KEY"])
 
 # 2. LOAD YOUR PHOTO
 try:

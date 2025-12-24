@@ -6,6 +6,7 @@ from streamlit_stl import stl_from_file
 import json
 import re
 import os
+import shutil  # Required to find OpenSCAD on the server
 
 # --- PAGE CONFIG ---
 st.set_page_config(page_title="Napkin", layout="wide", initial_sidebar_state="collapsed")
@@ -104,7 +105,6 @@ st.markdown(f"""
     .price-amt {{ font-size: 2.8rem; font-weight: 800; color: #58a6ff; display: inline-block; }}
     .per-month {{ font-size: 1rem; color: #8b949e; font-weight: 400; margin-left: 5px; }}
     
-    /* PRICING SUBTEXT STYLES */
     .currency-sub {{ 
         color: #8b949e; 
         font-size: 0.85rem; 
@@ -186,18 +186,31 @@ elif st.session_state.page == "Make a Part":
         if generate_btn:
             with st.spinner("Generating..."):
                 try:
-                    client = genai.Client(api_key=st.secrets["GEMINI_KEY"])
-                    prompt = f"Act as an OpenSCAD engineer. Create code based on: '{user_context}'. Use $fn=50;. Provide a JSON 'METADATA' object. Format: ```openscad [code] ``` and ```json [metadata] ```"
-                    inputs = [prompt, PIL.Image.open(uploaded_file)] if uploaded_file else [prompt]
-                    response = client.models.generate_content(model="gemini-2.0-flash-exp", contents=inputs)
-                    scad_match = re.search(r"```openscad(.*?)```", response.text, re.DOTALL)
-                    if scad_match:
-                        scad_code = scad_match.group(1).strip()
-                        with open("part.scad", "w") as f: f.write(scad_code)
-                        subprocess.run(["/usr/bin/openscad", "-o", "part.stl", "part.scad"], check=True)
-                        stl_from_file("part.stl", color='#58a6ff')
-                        st.download_button("Download STL", open("part.stl", "rb"), "part.stl", use_container_width=True)
-                except Exception as e: st.error(f"Error: {e}")
+                    # 1. Find the OpenSCAD executable on the server
+                    openscad_executable = shutil.which("openscad")
+                    
+                    if not openscad_executable:
+                        st.error("OpenSCAD is not installed. Please ensure packages.txt contains 'openscad' and is in your GitHub root.")
+                    else:
+                        client = genai.Client(api_key=st.secrets["GEMINI_KEY"])
+                        prompt = f"Act as an OpenSCAD engineer. Create code based on: '{user_context}'. Use $fn=50;. Provide a JSON 'METADATA' object. Format: ```openscad [code] ``` and ```json [metadata] ```"
+                        inputs = [prompt, PIL.Image.open(uploaded_file)] if uploaded_file else [prompt]
+                        response = client.models.generate_content(model="gemini-2.0-flash-exp", contents=inputs)
+                        
+                        scad_match = re.search(r"```openscad(.*?)```", response.text, re.DOTALL)
+                        if scad_match:
+                            scad_code = scad_match.group(1).strip()
+                            with open("part.scad", "w") as f: f.write(scad_code)
+                            
+                            # 2. Run the subprocess using the found path
+                            subprocess.run([openscad_executable, "-o", "part.stl", "part.scad"], check=True)
+                            
+                            stl_from_file("part.stl", color='#58a6ff')
+                            st.download_button("Download STL", open("part.stl", "rb"), "part.stl", use_container_width=True)
+                        else:
+                            st.warning("AI could not generate valid OpenSCAD code. Try adjusting your description.")
+                except Exception as e: 
+                    st.error(f"Error during generation: {e}")
 
 # 3. PRICING
 elif st.session_state.page == "Pricing":
@@ -245,7 +258,7 @@ elif st.session_state.page == "Contact":
     st.markdown("### Contact Us")
     with st.form("c"):
         st.text_input("Name")
-        st.text_input("Company") # <--- Added Company box here
+        st.text_input("Company")
         st.text_input("Email")
         st.text_area("Message")
         st.form_submit_button("Send Message")
@@ -268,5 +281,4 @@ st.markdown(f"""
         </div>
         <p style="font-size:0.75rem; margin-top: 25px; opacity: 0.7;">© 2025 Napkin Manufacturing Tool. All rights reserved.</p>
     </div>
-
     """, unsafe_allow_html=True)

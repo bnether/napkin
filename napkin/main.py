@@ -194,7 +194,7 @@ elif st.session_state.page == "Make a Part":
                     if scad_match:
                         scad_code = scad_match.group(1).strip()
                         with open("part.scad", "w") as f: f.write(scad_code)
-                        subprocess.run(["openscad", "-o", "part.stl", "part.scad"], check=True)
+                        subprocess.run(["/usr/bin/openscad", "-o", "part.stl", "part.scad"], check=True)
                         stl_from_file("part.stl", color='#58a6ff')
                         st.download_button("Download STL", open("part.stl", "rb"), "part.stl", use_container_width=True)
                 except Exception as e: st.error(f"Error: {e}")
@@ -268,4 +268,5 @@ st.markdown(f"""
         </div>
         <p style="font-size:0.75rem; margin-top: 25px; opacity: 0.7;">© 2025 Napkin Manufacturing Tool. All rights reserved.</p>
     </div>
+
     """, unsafe_allow_html=True)
